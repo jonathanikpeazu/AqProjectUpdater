@@ -16,10 +16,9 @@ from datetime import datetime
 __DEBUG = 1
     
 __DEBUG_ARGS = ['--api_key', '2fbborrg7dwqegs40t4gacfg14', 
-                '--db_address','http://66.172.13.75/pas/pasql/select?s=select%20%2A%20from%20proj_master%20where%20started%3E1330000000&db=asi.db', 
-                '--smartsheet_path', '/Users/Johno/Documents/AuriQ/',
+                '--db_address','http://66.172.13.75/pas/pasql/select?s=select%20%2A%20from%20proj_master%20where%20started%3E1330000000&db=asi.db',
                 '--sheet_id', '5835894021220228',  
-                '--column_id', '5804094553122692', '-x']
+                '--column_id', '5804094553122692']
 
 __LOG_FORMAT = '''%(asctime)-15s \n \
     Message: %(message)s \n \n \
@@ -120,6 +119,7 @@ def __make_parser():
 if __name__ == '__main__':
     from AqProjectUpdater import AqProjectUpdater
     
+    import signal # Scheduling
     import os # Paths
     import sys 
     from optparse import OptionParser, \
@@ -141,7 +141,7 @@ if __name__ == '__main__':
     from SmartSheet.util import Align
     
     # Set up directories
-    home_dir = os.path.join(settings.pop('home_dir'), 'AqProjectUpdater')
+    home_dir = os.path.join(settings.pop('home_dir'), 'AqProjectUpdater-files')
     work_dir = os.path.join(home_dir, 'temp')
     
     if settings.pop('log_enabled'):
@@ -188,7 +188,8 @@ if __name__ == '__main__':
                                            'new_options' : new_options})
             
         update_and_log()
-        sched.add_interval_job(update_and_log, seconds = 5)
+        sched.add_interval_job(update_and_log, hours = interval)
+        signal.pause()
     else:
         message, old_options, new_options = aqp.update_projects()
         logging.warn(message, extra = {'old_options' : old_options,
