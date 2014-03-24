@@ -51,6 +51,7 @@ def __make_parser():
     
     required.add_option('--smartsheet_path',
                         type = 'string',
+                        default = os.getcwd(),
                         help = '''The absolute path to the directory containing your SmartSheet Python package directory.''')
     
     # add the options to the list.
