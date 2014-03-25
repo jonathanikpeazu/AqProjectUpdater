@@ -56,7 +56,7 @@ class SmartSheet(Rowed, Columned):
         self.__dict__.update(new_dict)
     
     def display(self, row_query = None, col_query = None, refresh = False,
-                maxWidth = MAX_WIDTH):
+                header_only = False, maxWidth = MAX_WIDTH):
         
         if refresh:
             self.refresh()
@@ -96,24 +96,27 @@ class SmartSheet(Rowed, Columned):
         header = [([''] + [col.title for col in columns])]
         header += [([''] + ['ID: %s' % col.id for col in columns])]
         
-        # Map each row to an array of cells
-        rows = [row.cells for row in rows]
-        
-        '''Align the cells in each row with their corresponding column ID,
-        discarding those whose column ID is not present and inserting a ''
-        character where there is not cell object corresponding to a given
-        column ID.'''
-        column_space = [col.id for col in columns]
-        align_key = lambda cell, column_id: cell.columnId == column_id   
-        rows = map(lambda row: 
-                   map(lambda (cell, columnId):
-                       '' if cell is None else str(cell),
-                       Align.align_right(row, column_space, align_key)),
-                   rows)
-        
-        # add row numbers to the left.
-        rows = map(lambda row, row_number: [row_number] + row, 
-                   rows, row_query)
+        if header_only:
+            rows = [''] * len(header[0])
+        else:
+            # Map each row to an array of cells
+            rows = [row.cells for row in rows]
+            
+            '''Align the cells in each row with their corresponding column ID,
+            discarding those whose column ID is not present and inserting a ''
+            character where there is not cell object corresponding to a given
+            column ID.'''
+            column_space = [col.id for col in columns]
+            align_key = lambda cell, column_id: cell.columnId == column_id   
+            rows = map(lambda row: 
+                       map(lambda (cell, columnId):
+                           '' if cell is None else str(cell),
+                           Align.align_right(row, column_space, align_key)),
+                       rows)
+            
+            # add row numbers to the left.
+            rows = map(lambda row, row_number: [row_number] + row, 
+                       rows, row_query)
         
         columnPrint(rows, header, maxWidth = maxWidth, \
                     delimiter = '|', padding = 2)
