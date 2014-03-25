@@ -13,7 +13,7 @@ import logging
 import requests
 from datetime import datetime
 
-__DEBUG = 1
+__DEBUG = 0
     
 __DEBUG_ARGS = ['--api_key', '2fbborrg7dwqegs40t4gacfg14', 
                 '--db_address','http://66.172.13.75/pas/pasql/select?s=select%20%2A%20from%20proj_master%20where%20started%3E1330000000&db=asi.db',

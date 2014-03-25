@@ -93,8 +93,8 @@ class SmartSheet(Rowed, Columned):
         
         '''Create the column title header, adding an extra space to the left for
         the row number.'''
-        header = [col.title for col in columns]
-        header.insert(0, '')        
+        header = [([''] + [col.title for col in columns])]
+        header += [([''] + ['ID: %s' % col.id for col in columns])]
         
         # Map each row to an array of cells
         rows = [row.cells for row in rows]

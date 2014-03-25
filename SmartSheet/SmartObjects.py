@@ -1,3 +1,10 @@
+import sys
+try:
+    reload(sys)
+except:
+    pass
+sys.setdefaultencoding('UTF-8')
+
 from config import *
 
 # Copy constructors
