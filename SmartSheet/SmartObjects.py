@@ -23,7 +23,7 @@ class SmartObjectBase(object):
     
     # For casting to dictionary
     def __iter__(self):
-       return vars(self).iteritems()
+        return vars(self).iteritems()
             
     def __getattr__(self, name):
         if name == 'socket':

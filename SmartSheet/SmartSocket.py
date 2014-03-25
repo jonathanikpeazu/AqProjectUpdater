@@ -23,7 +23,8 @@ class SmartSocket:
         self.auth = dict(Authorization="Bearer " + api_key)
         self.sheets = self.get_sheets()
     
-    def send_request(self, method, endpoint, headers = None, data = None):
+    def send_request(self, method, endpoint, headers = None, data = None,
+                     encoding = None):
         
         requestParams = {}
         

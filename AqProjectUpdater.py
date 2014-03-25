@@ -20,12 +20,21 @@ import logging
 import requests
 from datetime import datetime
 
-__DEBUG = 0
-    
+import simplejson as json
+
+__DEBUG = 1
+
+# Japanese, Johno API
 __DEBUG_ARGS = ['--api_key', '2fbborrg7dwqegs40t4gacfg14', 
-                '--db_address','http://66.172.13.75/pas/pasql/select?s=select%20%2A%20from%20proj_master%20where%20started%3E1330000000&db=asi.db',
+                '--db_address','http://66.172.13.75/pas/pasql/select?s=select%20%2A%20from%20proj_master%20where%20started%3E1380000000&db=aqk.db', '--db_encoding', 'sjis',
                 '--sheet_id', '5835894021220228',  
-                '--column_id', '5804094553122692']
+                '--column_id', '1294997367613316']
+
+# English, Johno API
+'''__DEBUG_ARGS = ['--api_key', '2fbborrg7dwqegs40t4gacfg14', 
+                '--db_address','http://66.172.13.75/pas/pasql/select?s=select%20%2A%20from%20proj_master%20where%20started%3E1380000000&db=asi.db', '--db_encoding', 'utf-8',
+                '--sheet_id', '5835894021220228',  
+                '--column_id', '1294997367613316']'''
 
 __LOG_FORMAT = '''%(asctime)-15s \n \
     Message: %(message)s \n \n \
@@ -65,6 +74,12 @@ def __make_parser():
 
     # Optional parameters
     optional = OptionGroup(parser, 'More Parameters (Optional)')
+    
+    optional.add_option('--db_encoding',
+                        type = 'string',
+                        default = 'utf-8',
+                        help = '''The encoding to expect from the database result. \
+                        Defaults to 'utf-8'.''')
      
     optional.add_option('--delimiter',
              type = 'string',
@@ -168,8 +183,12 @@ if __name__ == '__main__':
                                          'AqProjectUpdater-temp.csv')  
     
     # Configure logging
-    logging.basicConfig(format = __LOG_FORMAT, \
-                        filename = os.path.join(log_dir, 'AqProjectUpdater.log'))
+    formatter = logging.Formatter(__LOG_FORMAT)
+    log_file = os.path.join(log_dir, 'AqProjectUpdater.log')
+    handler = logging.FileHandler(log_file, 'w', \
+                                  encoding = settings['db_encoding'])
+    handler.setFormatter(formatter)
+    logging.getLogger().addHandler(handler)
     
     
     # Set up smartsheet objects
@@ -191,8 +210,11 @@ if __name__ == '__main__':
         
         def update_and_log():
             message, old_options, new_options = aqp.update_projects()
-            logging.warn(message, extra = {'old_options' : old_options,
-                                           'new_options' : new_options})
+            logging.warn(message, extra = {
+                'old_options' : \
+                json.dumps(old_options, encoding = settings['db_encoding']),
+                'new_options' : \
+                json.dumps(new_options, encoding = settings['db_encoding'])})
             
         update_and_log()
         sched.add_interval_job(update_and_log, hours = interval)
@@ -215,15 +237,16 @@ class AqProjectUpdater:
         # Fetch the latest project info from the database.
         new_projects = self.pull_projects()        
         new_options = [self.stringify_project(proj) for proj in \
-                                      new_projects]    
+                                      new_projects]   
         
         # Send the new info to smartsheet
         resp = self.push_column_options(new_options)
         
         if 'errorCode' in resp:
             err = resp['errorCode']
-            message = 'Project Update Not Made. Smartsheet Error Code %d' % err
+            message = 'Project Update Not Made. Smartsheet Response: %s' % resp
         else:
+            new_options = self.get_sheet_options()
             message = 'Project Update Was Made.'
         
         # Return info for logging.
@@ -233,8 +256,13 @@ class AqProjectUpdater:
         # TODO
         
         # Open stream from DB
-        r = requests.get(self.db_address, stream = True)
+        r = requests.get(self.db_address)
         
+        dr = UnicodeDictReader(r.iter_lines(decode_unicode = True), encoding = self.db_encoding,
+                               fieldnames = self.fields)
+        
+        projects = [p for p in dr]
+        '''
         # Create temporary work file
         work_file = self.work_file
         
@@ -246,7 +274,7 @@ class AqProjectUpdater:
                   'wb',          # write binary
                   1) as wf:      # line buffering
             for chunk in r.iter_content(1024):
-                wf.write(chunk)
+                wf.write(chunk.encode('utf-8'))
             
         # Load the projects from the temp file into Py dictionaries.
         with open(work_file, 
@@ -254,11 +282,12 @@ class AqProjectUpdater:
                   1) as wf: 
             dr = csv.DictReader(wf, fieldnames = self.fields)
             projects = [p for p in dr]
+            '''
         
         # Remove unnecessary values from project dictionaries
         for p in projects:
             if None in p: # Key assigned to columns not in "fields"
-                p.pop(None) 
+                p.pop(None)
         
         projects = [p for p in projects \
                     if all([field in p for field in self.fields])]
@@ -269,8 +298,8 @@ class AqProjectUpdater:
         # TODO: Docstring
         
         request_body = {'type' : 'PICKLIST', 
-                        'options' :  new_options} 
-        
+                        'options' :  new_options[:100]} 
+    
         resp = self.sheet.modify_column(self.column_id, **request_body)
         
         # TODO: Error handling
@@ -316,3 +345,9 @@ class AqProjectUpdater:
         field_values = project_string.split(self.delimiter)
         return dict((attr, val) \
                     for attr, val in zip(self.fields, field_values))
+    
+def UnicodeDictReader(csvfile, encoding = 'utf-8', **kwargs):
+    csv_reader = csv.DictReader(csvfile, **kwargs)
+    for row in csv_reader:
+        y = dict(((key, unicode(value, encoding)) for key, value in row.iteritems() if key is not None))
+        yield y
