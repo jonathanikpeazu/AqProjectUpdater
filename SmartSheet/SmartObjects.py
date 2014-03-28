@@ -1,9 +1,6 @@
 import sys
-try:
-    reload(sys)
-except:
-    pass
-sys.setdefaultencoding('UTF-8')
+reload(sys)  # to enable `setdefaultencoding` again
+sys.setdefaultencoding("UTF-8")
 
 # CELL_PADDING, MAX_WIDTH
 from config import *

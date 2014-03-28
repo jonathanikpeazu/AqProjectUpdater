@@ -1,7 +1,7 @@
-#!/usr/bin/python
-
 import os # Paths
 import sys
+reload(sys)  # to enable `setdefaultencoding` again
+sys.setdefaultencoding("UTF-8")
 import logging
 import requests
 from datetime import datetime
@@ -243,7 +243,7 @@ class AqProjectUpdater:
         
         column = self.sheet.get_column('id', self.column_id)
         options = column.options if 'options' in column.__dict__ else [None]
-        return old_projects
+        return options
     
     def dictify_project(self, project_string):
         field_values = project_string.split(self.delimiter)
