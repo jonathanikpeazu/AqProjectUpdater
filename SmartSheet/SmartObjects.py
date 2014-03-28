@@ -5,6 +5,7 @@ except:
     pass
 sys.setdefaultencoding('UTF-8')
 
+# CELL_PADDING, MAX_WIDTH
 from config import *
 
 # Copy constructors
@@ -15,7 +16,14 @@ from datetime import datetime
 from dateutil import parser
 
 # Alignment
-from util import *
+from util import align
+from util.columntools import column_print
+
+# HTTP requests
+import requests
+from requests import get
+from requests import post
+from requests import put
 
 # More imports at the bottom
 
@@ -52,35 +60,41 @@ class Columned(SmartObjectBase):
                            else SmartColumn(sheet = self, attr_dict = c),
                            self.columns)    
     
+    def make_header(self, columns = None):
+        '''Make a header out of the given columns. Includes title, ID, and 
+        index. Used for column printing.'''
+        if not columns:
+            columns = self.columns
+        
+        # Leave space to the left for the row number.
+        header = [([''] + [col.title for col in columns])]
+        header += [([''] + ['Index: %d' % col.index for col in columns])]
+        header += [([''] + ['ID: %d' % col.id for col in columns])] 
+        
+        return header
         
     def get_column(self, field, query):
-        
-        # Adjustment from one-based to zero-based column indexing.
-        if field == 'index':
-            query -= 1
-        
         try:
-            return next(c for c in self.columns if dict(c)[field] == query)
+            return next(c for c in self.columns if getattr(c, field) == query)
         except StopIteration:
             raise ColumnError(field, query, self.sheet)
         
-    def updateColumns(self, newColumnDicts):
+    def update_columns(self, new_dicts):
         
-        # ID space of the columns that should stick around.
-        newColIdSpace = [dct['id'] for dct in newColumnDicts]
+        # Match up the columns with their new dictionaries.
+        align_key = lambda col, new_dict: col.id == new_dict['id']
+        updates = align.align_right(self.columns, new_dicts, align_key)
         
-        # Remove columns that have been deleted remotely.
-        self.columns = filter(lambda c: c.id in newColIdSpace,
-                              self.columns)
+        # Update existing rows
+        map(lambda (col, new_dict):
+            col.update_from_dict(new_dict) if col else None, updates)
         
-        # Pair up each column object with a dict of new info about the column.
-        updates = map(lambda dct:
-                      dict(next([col for col in self.columns \
-                                 if col.id == dct['id']], None), dct),
-                      newColumnDicts)
+        '''Put existing, updated rows back into self.rows and instantiate
+        new rows'''
+        self.columns = [col if col else SmartColumn(new_dict)
+                        for (col, new_dict) in updates]
         
-        # Perform the updates.
-        map(lambda (column, info): column.update(info), updates)
+        self.columns.sort(key = lambda col: col.id)   
         
        
 class Rowed(SmartObjectBase):
@@ -100,26 +114,26 @@ class Rowed(SmartObjectBase):
         
     def get_row(self, field, query):
         try:
-            return next([r for r in self.rows if getattr(r, field) == query])
+            return next(r for r in self.rows if getattr(r, field) == query)
         except StopIteration:
             raise RowError(field, query, self.sheet)
         
-    def updateRows(self, newRowDicts):
-        # ID space of the rows that should stick around.
-        newRowIdSpace = [dct['id'] for dct in newRowDicts]
+    def update_rows(self, new_dicts):
         
-        # Remove rows that have been deleted remotely.
-        self.rows = filter(lambda r: r.id in newRowIdSpace,
-                           self.rows)
+        # Match up the rows with their new dictionaries.
+        align_key = lambda row, new_dict: row.id == new_dict['id']
+        updates = align.align_right(self.rows, new_dicts, align_key)
         
-        # Pair up each row object with a dict of new info about the row.
-        updates = map(lambda dct:
-                      dict(next([row for row in self.rows \
-                                 if row.id == dct['id']], None), dct),
-                      newRowDicts)
+        # Update existing rows
+        map(lambda (row, new_dict):
+            row.update_from_dict(new_dict) if row is not None else None, updates)
         
-        # Perform the updates.
-        map(lambda (row, newDict): row.update(newDict), updates)        
+        '''Put existing, updated rows back into self.rows and instantiate
+        new rows'''
+        self.rows = [row if row else SmartRow(self, new_dict)
+                     for (row, new_dict) in updates]
+        
+        self.rows.sort(key = lambda row: row.id)        
   
 class SmartObjectArray(list):
     '''A modified array class which allows lazy initialization of Smart Objects.

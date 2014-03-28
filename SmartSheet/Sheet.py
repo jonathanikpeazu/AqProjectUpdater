@@ -1,13 +1,5 @@
 # Base classes
 from SmartObjects import *
-from SmartSocket import *
-# Column printing
-from util.ColumnTools import columnPrint
-
-# Alignment
-from util import Align
-
-from config import *
 
 class SmartSheet(Rowed, Columned):
 
@@ -20,18 +12,13 @@ class SmartSheet(Rowed, Columned):
             raise TypeError('Sheet must be instantiated with either sheet ID \
             or pre-fetched attribute dictionary.')
         
-        # If only sheet ID was provided, fetch the sheet's attributes.
+        # If only sheet ID was provided, fetch attr_dict manually.
         if sheet_id:
             attr_dict = socket.get_sheet_info(sheet_id, include_attachments,
                                                 include_discussions)
         
         self.socket = socket
-        self.__dict__.update(attr_dict)  
-        
-        '''self.columns = SmartObjectArray(SmartColumn, self.columns, 
-                                        sheet = self.sheet)
-        self.rows = SmartObjectArray(SmartRow, self.rows, 
-                                     sheet = self.sheet)'''
+        self.__dict__.update(attr_dict)
         
         # Initialize rows and columns.
         self.initialize_rows()
@@ -43,20 +30,20 @@ class SmartSheet(Rowed, Columned):
         
         return SmartObjectBase.__getattr__(self, name)
         
-    def refresh(self, include_attachments, include_discussions):
+    def refresh(self, include_attachments = False, 
+                include_discussions = False, force = True):
+        # Fetch the latest version of this sheet from the server.
         
-        new_dict = self.socket.fetch_sheet(self.id, include_discussions,
+        new_dict = self.socket.get_sheet_info(self.id, include_discussions,
                                           include_attachments)
         
-        self.update_from_dict(new_dict)    
-    
-    def update_from_dict(self, new_dict):
-        self.update_rows(new_dict.pop('rows'))
-        self.update_columns(new_dict.pop('columns'))
-        self.__dict__.update(new_dict)
+        if force or new_dict['version'] > self.version:
+            self.update_rows(new_dict.pop('rows'))
+            self.update_columns(new_dict.pop('columns'))
+            self.__dict__.update(new_dict)        
     
     def display(self, row_query = None, col_query = None, refresh = False,
-                header_only = False, maxWidth = MAX_WIDTH):
+                max_width = MAX_WIDTH):
         
         if refresh:
             self.refresh()
@@ -65,62 +52,43 @@ class SmartSheet(Rowed, Columned):
         if col_query is None:
             columns = self.columns
         else:
-            col_query = list(col_query)
-            
+            if not isinstance(col_query, list):
+                col_query = [col_query]
+            '''If col_query argument contains things that are not ints or 
+            strings, raise a TypeError''' 
+            if not all([isinstance(q, str) or isinstance(q, int) \
+                        for q in col_query]):
+                raise TypeError('Columns must be referred to by title or \
+                1-based index.')            
             # Search by title if string, or index if int.
             columns = [self.get_column(query = q, 
                                        field = 'index' if isinstance(q, int) \
                                        else 'title') for q in col_query]
-        
+    
         # Grab just the row objects we need.    
         if row_query is None:
-            rows = self.rows
-            row_query = [row.rowNumber for row in rows]            
+            rows = self.rows          
         else:
-            row_query = list(row_query)
+            if not isinstance(row_query, list):
+                row_query = [row_query]
+                
+            # Rows should only be referred to by row number.
+            if not all([isinstance(q, int) for q in row_query]):
+                raise TypeError('Rows must be referenced by rowNumber.')
             
-            # Row numbers are 1-indexed.
-            row_query = map(lambda q: q + 1, row_query)
-            
-            # Get the row objects we need.
             rows = [self.get_row(query = q, field = 'rowNumber') \
                     for q in row_query]        
-        
         
         # Sort rows and columns
         columns.sort(key = lambda c: c.index)
         rows.sort(key = lambda r: r.rowNumber)
         
-        '''Create the column title header, adding an extra space to the left for
-        the row number.'''
-        header = [([''] + [col.title for col in columns])]
-        header += [([''] + ['ID: %s' % col.id for col in columns])]
+        # Make print headers and data
+        header = self.make_header(columns)
+        data = [row.make_data(columns) for row in rows]
         
-        if header_only:
-            rows = [''] * len(header[0])
-        else:
-            # Map each row to an array of cells
-            rows = [row.cells for row in rows]
-            
-            '''Align the cells in each row with their corresponding column ID,
-            discarding those whose column ID is not present and inserting a ''
-            character where there is not cell object corresponding to a given
-            column ID.'''
-            column_space = [col.id for col in columns]
-            align_key = lambda cell, column_id: cell.columnId == column_id   
-            rows = map(lambda row: 
-                       map(lambda (cell, columnId):
-                           '' if cell is None else str(cell),
-                           Align.align_right(row, column_space, align_key)),
-                       rows)
-            
-            # add row numbers to the left.
-            rows = map(lambda row, row_number: [row_number] + row, 
-                       rows, row_query)
-        
-        columnPrint(rows, header, maxWidth = maxWidth, \
+        column_print(data, header, max_width = max_width, \
                     delimiter = '|', padding = 2)
-         
      
     def add_column(self, index = 0, title = 'New Column', 
                    col_type = 'TEXT_NUMBER', **kwargs):

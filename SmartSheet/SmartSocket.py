@@ -1,18 +1,8 @@
-from util.ColumnTools import columnPrint
-
-from config import *
-
-# HTTP requests
-import requests
-from requests import get
-from requests import post
-from requests import put
+from SmartObjects import *
 
 # JSON formatting
 import simplejson as json
 import math
-
-from SmartObjects import SmartObjectBase
 
 class SmartSocket:
     api_base = "https://api.smartsheet.com/1.1/"
@@ -77,7 +67,7 @@ class SmartSocket:
         self.sheets = sheets
         
     def display(self, refresh=False, \
-                maxWidth = MAX_WIDTH, padding = CELL_PADDING):
+                max_width = MAX_WIDTH, padding = CELL_PADDING):
         '''
         Display overview of all available sheets, formatted in the following
         way:
@@ -91,7 +81,7 @@ class SmartSocket:
         refresh: If True, fetch the latest information about sheets belonging
         to the user.
         
-        maxWidth: The maximum allowable width of a column.
+        max_width: The maximum allowable width of a column.
         
         padding: How much space is left between columns
         '''
@@ -122,7 +112,7 @@ class SmartSocket:
         header = ['', 'name', 'id', 'access_level']     
         
         # Display the info.
-        columnPrint(data = sheets, header = header, maxWidth = maxWidth)
+        column_print(data = sheets, header = header, max_width = max_width)
         
     def _query_internal_sheets(self, query, query_field):
         try:

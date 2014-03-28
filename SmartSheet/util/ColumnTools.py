@@ -3,7 +3,7 @@ import copy
 DEFAULT_PADDING = 2
 DEFAULT_FILL = ' '
 
-def getColumnWidths(rows):
+def get_column_widths(rows):
     '''Takes a row as a list, or a set of rows as a nested list and returns a 
     list of the widths of the widest element in each column. 
     
@@ -36,10 +36,10 @@ def getColumnWidths(rows):
         
         return columnWidths
 
-def truncateRows(rows, maxWidth):
+def truncateRows(rows, max_width):
     '''Takes a two-dimensional list, where each inner list represents a row,
     and returns a new 2D list in which the length of each value is at most
-    maxWidth. Does not alter the original array.
+    max_width. Does not alter the original array.
     
     Ex:   
     lst = [['blah blah', 'hello'], ['good', 'bye']]
@@ -55,12 +55,12 @@ def truncateRows(rows, maxWidth):
     i = 0
     while i < numRows:
         
-        newRow = map(lambda cellVal: cellVal[maxWidth:], rows[i])
+        newRow = map(lambda cellVal: cellVal[max_width:], rows[i])
         
         '''Check if there is any spillover. If so, add a new row after the 
         truncated row.'''
         if any(newRow):
-            truncRow = map(lambda cellVal: cellVal[:maxWidth], rows[i])
+            truncRow = map(lambda cellVal: cellVal[:max_width], rows[i])
             rows[i] = truncRow
             rows.insert(i + 1, newRow)
             numRows += 1
@@ -70,7 +70,7 @@ def truncateRows(rows, maxWidth):
         
     return rows
 
-def columnPrint(data, header = None, maxWidth = None, \
+def column_print(data, header = None, max_width = None, \
                 delimiter = '|', padding = 2, fillChar = ' '):
     '''Takes an array of rows in nested list representation, 
     automatically detects the width of each column, and prints the rows to fit 
@@ -83,7 +83,7 @@ def columnPrint(data, header = None, maxWidth = None, \
     2. header: A column header as a single row. Must be the same length as each
     column.
     
-    3. maxWidth: The maximum display width of a column
+    3. max_width: The maximum display width of a column
     
     4. delimiter: The character which will be placed between columns.
     
@@ -113,12 +113,12 @@ def columnPrint(data, header = None, maxWidth = None, \
     data = map(lambda row: map(str, row), data)
         
     # Get the width of each column without headers.
-    dataWidths = getColumnWidths(data)
+    dataWidths = get_column_widths(data)
     
     # If any of the columns is too wide, truncate.
-    if maxWidth and any(map(lambda w: w > maxWidth, dataWidths)):
-        data = truncateRows(data, maxWidth)
-        dataWidths = map(lambda w: min(w, maxWidth), dataWidths)
+    if max_width and any(map(lambda w: w > max_width, dataWidths)):
+        data = truncateRows(data, max_width)
+        dataWidths = map(lambda w: min(w, max_width), dataWidths)
     
     # Header processing
     if not header:
@@ -129,12 +129,12 @@ def columnPrint(data, header = None, maxWidth = None, \
             header = [header]
         
         header = map(lambda row: map(str, row), header)
-        headerWidths = getColumnWidths(header)
+        headerWidths = get_column_widths(header)
         
         # If any of the header columns is too wide, truncate.
-        if maxWidth and any(map(lambda w: w > maxWidth, headerWidths)):
-            header = truncateRows(header, maxWidth)
-            headerWidths = map(lambda w: min(w, maxWidth), columnWidths)
+        if max_width and any(map(lambda w: w > max_width, headerWidths)):
+            header = truncateRows(header, max_width)
+            headerWidths = map(lambda w: min(w, max_width), columnWidths)
             
         columnWidths = map(max, zip(dataWidths, headerWidths))
         

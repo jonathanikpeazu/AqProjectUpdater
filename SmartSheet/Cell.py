@@ -12,8 +12,7 @@ class SmartCell(SmartObjectBase):
             return ''
 
         if name == 'column':
-            return self.sheet.search_columns(field = 'id', \
-                                             query = self.columnId)
+            return self.sheet.get_column('id', self.columnId)
         
         if name in ['column_title', 'columnTitle']:
             return self.column.title
@@ -27,8 +26,10 @@ class SmartCell(SmartObjectBase):
     def __str__(self):
         return str(self.value)
     
-    def display(self, colTitle = True, underLine = True, maxWidth = MAX_WIDTH,\
-                padding = 2):
+    def display(self, header = True, max_width = MAX_WIDTH):
         header = ['', self.column_title]
         rows = [[self.row_number, str(self)]]
         columnPrint(header = header, rows = rows, maxWidth = maxWidth)
+        
+    def update_from_dict(self, new_dict):
+        self.__dict__.update(new_dict)

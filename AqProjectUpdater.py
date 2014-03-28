@@ -1,28 +1,17 @@
 #!/usr/bin/python
 
+import os # Paths
 import sys
-try:
-    reload(sys)
-except:
-    pass
-sys.setdefaultencoding('UTF-8')
-
 import logging
-
-import sys
-import csv
-
-import os
-import sys
-
-import logging
-
 import requests
 from datetime import datetime
-
 import simplejson as json
 
-__DEBUG = 1
+# CSV tools
+import csv
+from util.unicodecsv import UnicodeDictReader, UnicodeWriter
+
+__DEBUG = 0
 
 # Japanese, Johno API
 __DEBUG_ARGS = ['--api_key', '2fbborrg7dwqegs40t4gacfg14', 
@@ -36,118 +25,14 @@ __DEBUG_ARGS = ['--api_key', '2fbborrg7dwqegs40t4gacfg14',
                 '--sheet_id', '5835894021220228',  
                 '--column_id', '1294997367613316']'''
 
-__LOG_FORMAT = '''%(asctime)-15s \n \
-    Message: %(message)s \n \n \
+_LOG_FORMAT = '''%(asctime)-15s: %(message)s \n \n \
     Old Options: %(old_options)s \n \n  \
-    New Options: %(new_options)s \n \n \n \n'''
-
-def __make_parser():
-    
-    parser = OptionParser(usage = "usage: %prog [options]")
-        
-    # Group of required parameters
-    required = OptionGroup(parser, 'Required Parameters')    
-    required.add_option('--api_key',
-         type = 'string',
-         help = 'The SmartSheet API key to use to fetch the documents')
-
-    required.add_option('--sheet_id',
-         type = 'int',
-         help = 'The ID of the sheet you wish to update.')
-    
-    required.add_option('--column_id',
-         type = 'int',
-         help = '''The ID of the column you wish to update. Must be a dropdown list type.''')
-    
-    required.add_option('--db_address',
-         type = 'string',
-         help = '''The address of the database you wish to pull from, \
-         enclosed in quotes. This database must return a file in CSV format.''')
-    
-    required.add_option('--smartsheet_path',
-                        type = 'string',
-                        default = os.getcwd(),
-                        help = '''The absolute path to the directory containing your SmartSheet Python package directory.''')
-    
-    # add the options to the list.
-    parser.add_option_group(required)
-
-    # Optional parameters
-    optional = OptionGroup(parser, 'More Parameters (Optional)')
-    
-    optional.add_option('--db_encoding',
-                        type = 'string',
-                        default = 'utf-8',
-                        help = '''The encoding to expect from the database result. \
-                        Defaults to 'utf-8'.''')
-     
-    optional.add_option('--delimiter',
-             type = 'string',
-             default = '-',
-             help = '''The character that will be used to separate the values \
-             in "fields"''')   
-    
-    optional.add_option('--home_dir',
-        type = 'string',
-        default = os.getcwd(),
-        help = '''The directory that will be used to store temp and log files. \n
-        Defaults to the current working directory.''')
-    
-    optional.add_option('--fields',
-         type = 'string',
-         default = ['id', 'projcode', 'subno', 'name'],
-         action = 'append',
-         help = '''The field names that will be used to construct the column \
-         options.''')
-    
-    parser.add_option_group(optional)
-    
-    # Scheduling options
-    sched_opt = OptionGroup(parser, 'Scheduling Parameters (optional)')
-        
-    sched_opt.add_option('-x', '--run_scheduler',
-            action = 'store_true',
-            default = False,
-            help = '''Set this flag if you want to run recurring updates in \
-            the background. Defaults to false.''')
-        
-    sched_opt.add_option('--interval',
-            type = 'int',
-            default = 24,
-            help = '''The interval on which the scheduler will run, in number \
-            of hours. \n
-            Default: 24.''')
-    
-    parser.add_option_group(sched_opt)
-    
-    # Logging options
-    log_opt = OptionGroup(parser, 'Logging Options (optional)')
-    
-    log_opt.add_option('--no_log',
-                       action = 'store_false',
-                       default = True,
-                       dest = 'log_enabled',
-                       help = '''Disable logging for the project updater.
-                       Logging is enabled by default.''')
-    
-    log_opt.add_option('--log_dir',
-                       type = 'string',
-                       default = '',
-                       help = '''Custom logging directory.
-                       Defaults to %s''' % os.path.join('home_dir', 'log'))
-    
-    return parser
+    New Options: %(new_options)s \n \n \n'''
 
 if __name__ == '__main__':
     from AqProjectUpdater import AqProjectUpdater
-    
-    import signal # Scheduling
-    import os # Paths
-    import sys 
-    from optparse import OptionParser, \
-         OptionGroup             
-        
-    parser = __make_parser()
+    from parser import parser
+    import signal # Persistent python process for scheduling
     
     if __DEBUG:
         parser.parse_args(args = sys.argv[1:] + __DEBUG_ARGS)
@@ -160,7 +45,7 @@ if __name__ == '__main__':
     sys.path.insert(0, settings.pop('smartsheet_path'))
     from SmartSheet.SmartObjects import *
     from SmartSheet.SmartSocket import SmartSocket
-    from SmartSheet.util import Align
+    from SmartSheet.util import align
     
     # Set up directories
     home_dir = os.path.join(settings.pop('home_dir'), 'AqProjectUpdater-files')
@@ -183,13 +68,20 @@ if __name__ == '__main__':
                                          'AqProjectUpdater-temp.csv')  
     
     # Configure logging
-    formatter = logging.Formatter(__LOG_FORMAT)
+    logging.raiseExceptions = False # Make logger not complain.
     log_file = os.path.join(log_dir, 'AqProjectUpdater.log')
-    handler = logging.FileHandler(log_file, 'w', \
-                                  encoding = settings['db_encoding'])
-    handler.setFormatter(formatter)
-    logging.getLogger().addHandler(handler)
     
+    # File handler, formatter
+    fh = logging.FileHandler(log_file, \
+                             encoding = settings['db_encoding'])
+    ff = logging.Formatter(_LOG_FORMAT)
+    fh.setFormatter(ff)   
+    
+    # Add handlers to logger
+    logger = logging.getLogger()
+    logger.addHandler(fh)
+    
+    logger.setLevel(logging.INFO)
     
     # Set up smartsheet objects
     socket = SmartSocket(settings.pop('api_key'))
@@ -208,31 +100,58 @@ if __name__ == '__main__':
         
         sched.start()
         
-        def update_and_log():
+        '''def update_and_log():
             message, old_options, new_options = aqp.update_projects()
             logging.warn(message, extra = {
                 'old_options' : \
                 json.dumps(old_options, encoding = settings['db_encoding']),
                 'new_options' : \
                 json.dumps(new_options, encoding = settings['db_encoding'])})
+        '''
             
         update_and_log()
         sched.add_interval_job(update_and_log, hours = interval)
         signal.pause()
     else:
-        message, old_options, new_options = aqp.update_projects()
-        logging.warn(message, extra = {'old_options' : old_options,
-                                        'new_options' : new_options})  
+        aqp.update_projects()  
 
 class AqProjectUpdater:
+    
+    logger = logging.getLogger(__name__)
+    
+    # Stream handler, formatter
+    sh = logging.StreamHandler(sys.stdout)
+    sf = logging.Formatter('%(message)s')
+    sh.setFormatter(sf)   
+
+    logger.addHandler(sh)
+    
+    logger.propagate = True
+    
+    # Configure logging
+    '''
+    handler = logging.StreamHandler(sys.stdout)
+    formatter = logging.Formatter('%(message)s \n')
+    handler.setFormatter(formatter)
+    
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO) 
+    '''
     
     def __init__(self, settings):
         self.__dict__.update(settings)
         
     def update_projects(self):
-        update_time = datetime.now()
         
-        old_options = self.get_sheet_options()
+        message = '''Preparing to update column uptions.
+        Sheet: "%(sheet)s"
+        Column title: "%(col_title)s" \n''' \
+            % {'sheet' : self.sheet.name, 
+               'col_title' : self.sheet.get_column('id', self.column_id).title}  
+        
+        AqProjectUpdater.logger.info(message)
+        
+        old_options = self.get_sheet_options()        
         
         # Fetch the latest project info from the database.
         new_projects = self.pull_projects()        
@@ -243,46 +162,29 @@ class AqProjectUpdater:
         resp = self.push_column_options(new_options)
         
         if 'errorCode' in resp:
-            err = resp['errorCode']
-            message = 'Project Update Not Made. Smartsheet Response: %s' % resp
+            message = 'Column Option Update Not Made. \n Smartsheet Response: %s' % resp
+            new_options = [None]
         else:
-            new_options = self.get_sheet_options()
-            message = 'Project Update Was Made.'
-        
-        # Return info for logging.
-        return (message, old_options, new_options)        
+            message = 'Column Option Update Was Made.'
+            
+        AqProjectUpdater.logger.info(message, \
+                extra = {'old_options' : \
+                         json.dumps(old_options, encoding = self.db_encoding),
+                         'new_options' : \
+                json.dumps(new_options, encoding = self.db_encoding)})     
     
     def pull_projects(self):
         # TODO
-        
+        AqProjectUpdater.logger.info('Pulling new projects from DB.')
         # Open stream from DB
         r = requests.get(self.db_address)
+        content = [line for line in r.iter_lines(decode_unicode = True)]
         
-        dr = UnicodeDictReader(r.iter_lines(decode_unicode = True), encoding = self.db_encoding,
+        dr = UnicodeDictReader((line for line in content), 
+                               encoding = self.db_encoding,
                                fieldnames = self.fields)
         
         projects = [p for p in dr]
-        '''
-        # Create temporary work file
-        work_file = self.work_file
-        
-        # Overwrite existing work file
-        open(work_file, 'w').close()
-        
-        # Write the data to a temporary work file.
-        with open(work_file, 
-                  'wb',          # write binary
-                  1) as wf:      # line buffering
-            for chunk in r.iter_content(1024):
-                wf.write(chunk.encode('utf-8'))
-            
-        # Load the projects from the temp file into Py dictionaries.
-        with open(work_file, 
-                  'rU',          # Universal newline-read
-                  1) as wf: 
-            dr = csv.DictReader(wf, fieldnames = self.fields)
-            projects = [p for p in dr]
-            '''
         
         # Remove unnecessary values from project dictionaries
         for p in projects:
@@ -296,7 +198,7 @@ class AqProjectUpdater:
     
     def push_column_options(self, new_options):
         # TODO: Docstring
-        
+        logging.info('Pushing new column options to Smartsheet.')
         request_body = {'type' : 'PICKLIST', 
                         'options' :  new_options[:100]} 
     
@@ -309,7 +211,7 @@ class AqProjectUpdater:
         # TODO: docstring
     
         # Line up the projects by ID
-        updates = Align.align_outer(old_projects, new_projects,
+        updates = align.align_outer(old_projects, new_projects,
                                     key = lambda p1, p2: p1['id'] == p2['id'])
         
         # Keep only the projects that have changed.
@@ -337,17 +239,14 @@ class AqProjectUpdater:
         return string
     
     def get_sheet_options(self):
-        old_projects = self.sheet.get_column('id', self.column_id).options
-        return old_projects
+        AqProjectUpdater.logger.info('Pulling existing options from Smartsheet.')
         
+        column = self.sheet.get_column('id', self.column_id)
+        options = column.options if 'options' in column.__dict__ else [None]
+        return old_projects
     
     def dictify_project(self, project_string):
         field_values = project_string.split(self.delimiter)
         return dict((attr, val) \
                     for attr, val in zip(self.fields, field_values))
     
-def UnicodeDictReader(csvfile, encoding = 'utf-8', **kwargs):
-    csv_reader = csv.DictReader(csvfile, **kwargs)
-    for row in csv_reader:
-        y = dict(((key, unicode(value, encoding)) for key, value in row.iteritems() if key is not None))
-        yield y
